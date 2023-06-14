@@ -31,7 +31,8 @@ namespace Wordle_Clone
             if (GameManager.instance.gameWon)
                 return;
 
-            localGameLogic.OnKeyPressed?.Invoke(keyIndex);
+            if (keyIndex != 255)
+                localGameLogic.OnKeyPressed?.Invoke(keyIndex, false);
 
             if (keyIndex == 254)                     //For BackSpace
             {
@@ -40,10 +41,13 @@ namespace Wordle_Clone
             }
             else if (keyIndex == 255)                     //Ignore Enter
             {
+                //Debug.Log("Enter Called");
                 //Check if the row if fully filled
                 if (GameManager.instance.currentLetterIndex == 5)
                 {
                     //Moved to ChosenLetter
+                    localGameLogic.CheckLetter();
+                    localGameLogic.OnKeyPressed?.Invoke(keyIndex, false);
                 }
             }
             else

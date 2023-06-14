@@ -6,8 +6,12 @@ namespace Wordle_Clone
     public class ChosenLetter : MonoBehaviour
     {
         private char letterChosen;
+        public char _letterIndex { get { return letterChosen; } }
         [SerializeField] private byte letterIndex, rowIndex;
+
         [SerializeField] private Animator letter_AC;
+        public bool repeat, correctPlace, firstInstance;
+        [SerializeField] private GameObject parentRow;
 
         [Header("UI")]
         [SerializeField] private TMPro.TMP_Text letter_Txt;
@@ -22,12 +26,14 @@ namespace Wordle_Clone
         {
             localGameLogic.OnKeyPressed += UpdateLetter;
             localGameLogic.OnGameRestart += ResetLetter;
+            localGameLogic.OnLetterRepeat += CheckRepeat;
         }
 
         private void OnDisable()
         {
             localGameLogic.OnKeyPressed -= UpdateLetter;
             localGameLogic.OnGameRestart -= ResetLetter;
+            localGameLogic.OnLetterRepeat -= CheckRepeat;
         }
 
         // Start is called before the first frame update
@@ -40,7 +46,7 @@ namespace Wordle_Clone
         }
 
         //decode using ASCII
-        private void UpdateLetter(byte keyIndex)
+        private void UpdateLetter(byte keyIndex, bool repetition)
         {
             if (keyIndex == 255)        //For Enter
             {
@@ -72,7 +78,16 @@ namespace Wordle_Clone
                 {
                     letterChosen = '0';
                     letter_Txt.text = "";
-                    Debug.Log($"Pressed BackSpace. Erasing");
+
+                    string temp = "";
+                    for (int i = 0; i < (localGameLogic.enteredWord.Length - 1); i++)
+                    {
+                        //Debug.Log($"Entered Letter : {localGameLogic.enteredWord[i]}");
+                        temp += localGameLogic.enteredWord[i];
+                    }
+
+                    localGameLogic.enteredWord = temp;
+                    //Debug.Log($"Pressed BackSpace. Erasing. New word : {localGameLogic.enteredWord}");
                 }
             }
             else
@@ -82,8 +97,26 @@ namespace Wordle_Clone
                 {
                     letterChosen = (char)keyIndex;
                     letter_Txt.text = letterChosen.ToString();
-                    //Debug.Log($"Chose letter : {letterChosen}");
+
+                    localGameLogic.enteredWord += letterChosen;
+                    //localGameLogic.enteredWord2[GameManager.instance.currentLetterIndex] = keyIndex;
+
+                    if (!localGameLogic.checkLetterRepeat2.ContainsKey(keyIndex))
+                        localGameLogic.checkLetterRepeat2.Add(keyIndex, 0);
+                    //Debug.Log($"enteredWord : {localGameLogic.enteredWord}");
                 }
+            }
+        }
+
+        private void CheckRepeat(byte letterIndex, bool firstInstance, bool correctPlace)
+        {
+            if (this.letterIndex == letterIndex && rowIndex == GameManager.instance.currentRowIndex)
+            {
+                repeat = true;
+                this.firstInstance = firstInstance;
+                this.correctPlace = correctPlace;
+
+                //Debug.Log($"letterIndex : {letterIndex}, repeat : {repeat}, firstInstance: {firstInstance}, correctPlace : {correctPlace}");
             }
         }
 
@@ -92,8 +125,40 @@ namespace Wordle_Clone
             //if (rowIndex == GameManager.instance.currentRowIndex)           //Only the ones in the selected row
                 letterBG.sprite = bgSprites[1];
 
+            if (correctPlace)
+            {
+                letterBG.color = Color.green;
+                GameManager.instance.correctLettersChosen++;
+                if (GameManager.instance.correctLettersChosen == 5)
+                {
+                    GameManager.instance.gameWon = true;
+                    localGameLogic.OnGameWon?.Invoke();
+                }
+                return;
+            }
+            else if (firstInstance)
+            {
+                for (int i = 0; i < parentRow.transform.childCount; i++)
+                {
+                    if (i != letterIndex)
+                    {
+                        char tempLetter = parentRow.transform.GetChild(i).GetComponent<ChosenLetter>()._letterIndex;
+                        if (letterChosen.Equals(tempLetter))            //Same letter
+                        {
+                            if (parentRow.transform.GetChild(i).GetComponent<ChosenLetter>().correctPlace)
+                            {
+                                Debug.Log("Returning");
+                                return;
+                            }
+                        }
+                    }
+                }
+
+                letterBG.color = Color.yellow;
+            }
+
             //Update Color also accordingly
-            if (!letterChosen.Equals('0'))
+            /*if (!letterChosen.Equals('0'))
             {
                 char letter = '0';
                 //loop through to check if the chosen letter is in the currentWord
@@ -105,23 +170,11 @@ namespace Wordle_Clone
                         //Check index of the letter
                         if (letterIndex == i)
                         {
-                            letterBG.color = Color.green;
-                            GameManager.instance.correctLettersChosen++;
 
-                            if (GameManager.instance.correctLettersChosen == 5)
-                            {
-                                GameManager.instance.gameWon = true;
-                                localGameLogic.OnGameWon?.Invoke();
-                            }
-                            return;
-                        }
-                        else
-                        {
-                            letterBG.color = Color.yellow;
                         }
                     }
                 }
-            }
+            }*/
         }
 
         private void UpdateAnimateLetterIndex()
@@ -132,13 +185,15 @@ namespace Wordle_Clone
                 GameManager.instance.currentLetterIndex = 0;
                 GameManager.instance.currentRowIndex++;
                 GameManager.instance.correctLettersChosen = 0;
+                //localGameLogic.checkLetterInvoked= false;
+                //Debug.Log($"Resetting checkLetterInvoked");
 
                 localGameLogic.CheckRowsLeft();
                 return;
             }
 
             localGameLogic.animateLetterIndex++;
-            localGameLogic.OnKeyPressed?.Invoke(255);
+            localGameLogic.OnKeyPressed?.Invoke(255, false);
         }
 
         private void ResetLetter()
